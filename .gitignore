@@ -1,16 +1,13 @@
-# Node
 node_modules/
+.env
+.env.*
+!.env.example
+coverage/
+*.log
+.DS_Store
 dist/
 .vite/
-
-# Python
+*.tsbuildinfo
 __pycache__/
 *.pyc
 .venv/
-
-# Env
-.env
-.env.*
-
-# Logs
-npm-debug.log*
