@@ -43,10 +43,6 @@ export default function App() {
     setDecisions(next); setValidation(null); setResult(null);
     setStrategies([]); setReport(null); setError('');
   };
-  const refreshHealth = async () => {
-    try { setHealth(await request<Health>('/api/health')); setError(''); }
-    catch (e) { setError((e as Error).message); }
-  };
   const calculate = async () => {
     setBusy('calculate'); setError(''); setResult(null); setStrategies([]); setReport(null);
     try {
@@ -92,11 +88,10 @@ export default function App() {
 
       <div className="status-strip">
         <span className="status-pill neutral">Демо-режим</span>
-        <span className="status-pill neutral">Аналитика сценария активна</span>
+        <span className="status-pill neutral">Сценарный анализ активен</span>
         <span className={`status-pill ${health?.aiConfigured ? 'success' : 'warn'}`}>
           {health?.aiConfigured ? 'ИИ-аналитик готов' : 'ИИ ждёт API-ключ'}
         </span>
-        <button className="filter-btn action" disabled={!!busy} onClick={refreshHealth}>Обновить статус</button>
       </div>
 
       <section className="hero-panel">
