@@ -1,6 +1,7 @@
 import { build, preview } from "vite";
 import ts from "typescript";
 import { fileURLToPath } from "node:url";
+import { apiProxy, localServer } from "./vite.shared.mjs";
 
 // Keep compilation scoped to this project. The native esbuild resolver probes
 // parent directories that Windows may not permit this local sandbox to list.
@@ -22,12 +23,13 @@ const config = {
     },
   }],
   build: { minify: false, cssMinify: false },
-  preview: { host: "127.0.0.1", port: 5173, strictPort: true, proxy: { "/api": "http://127.0.0.1:3002" } },
+  preview: { ...localServer, proxy: apiProxy() },
 };
 
 if (process.argv[2] === "build") await build(config);
 else {
   const server = await preview(config);
   server.printUrls();
+  process.send?.({ type: 'ready', service: 'frontend' });
   for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => server.httpServer.close(() => process.exit(0)));
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Catalog, Decision, Health, Simulation, Strategy, AgentReport, Validation } from './api';
-import { request } from './api';
+import { request, requestStartup } from './api';
 
 const labels: Record<string, string> = { quality: 'Качество жизни', equity: 'Слабый район', reserve: 'Бюджетный резерв' };
 const number = (value: number) => value.toFixed(2);
@@ -21,9 +21,9 @@ export default function App() {
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([
-      request<Catalog>('/api/catalog', undefined, controller.signal),
-      request<Health>('/api/health', undefined, controller.signal),
-    ]).then(([data, status]) => { setCatalog(data); setHealth(status); })
+      requestStartup<Catalog>('/api/catalog', controller.signal),
+      requestStartup<Health>('/api/health', controller.signal),
+    ]).then(([data, status]) => { if (!controller.signal.aborted) { setCatalog(data); setHealth(status); setError(''); } })
       .catch(e => { if (!controller.signal.aborted) setError(e.message); });
     return () => controller.abort();
   }, []);

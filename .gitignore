@@ -8,6 +8,8 @@ coverage/
 dist/
 .vite/
 *.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 __pycache__/
 *.pyc
 .venv/

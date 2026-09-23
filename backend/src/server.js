@@ -1,15 +1,11 @@
-import { readFileSync } from "node:fs";
 import OpenAI from "openai";
-import { createEngine } from "./engine.js";
 import { createCityAgent } from "./agent.js";
 import { createApp } from "./app.js";
-import { createIntegratedEngine } from "./ml-engine.js";
+import { loadVerifiedEngine, startupMessage } from "./startup-engine.js";
 
-const datasetPath =
-  process.env.DATASET_PATH || new URL("../data/city.json", import.meta.url);
-const engine = createIntegratedEngine(createEngine(JSON.parse(readFileSync(datasetPath, "utf8"))));
-// Fail at startup if the team's Python calculator cannot verify the example.
-engine.evaluate(engine.catalog().exampleDecisions);
+let engine;
+try { engine = loadVerifiedEngine(); }
+catch (error) { console.error(startupMessage(error)); process.exit(1); }
 const apiKey = process.env.OPENAI_API_KEY?.trim();
 const agent = apiKey
   ? createCityAgent({
@@ -44,6 +40,14 @@ const server = app.listen(port, host, () => {
   console.log(
     `AI: ${agent ? "configured" : "not configured; set OPENAI_API_KEY in backend/.env"}`,
   );
+  process.send?.({ type: 'ready', service: 'backend' });
+});
+server.on('error', error => {
+  console.error(error.code === 'EADDRINUSE'
+    ? `Порт ${port} занят. Остановите предыдущий запуск проекта.`
+    : `Не удалось запустить backend (${error.code || 'ошибка сервера'}).`);
+  process.exitCode = 1;
+  process.disconnect?.();
 });
 for (const sig of ["SIGINT", "SIGTERM"])
   process.on(sig, () => server.close(() => process.exit(0)));

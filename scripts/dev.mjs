@@ -1,45 +1,60 @@
-import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { assertPortFree, waitForReady } from './startup.mjs';
 
-const root = fileURLToPath(new URL("../", import.meta.url));
-const frontend = fileURLToPath(new URL("../frontend/", import.meta.url));
-const backend = fileURLToPath(new URL("../backend/", import.meta.url));
-const vite = fileURLToPath(new URL("../frontend/node_modules/vite/bin/vite.js", import.meta.url));
-if (!existsSync(vite) || !existsSync(new URL("../backend/node_modules/express/package.json", import.meta.url))) {
-  console.error("Сначала: npm.cmd --prefix backend ci и npm.cmd --prefix frontend ci");
-  process.exit(1);
-}
-async function compile(args) {
-  await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, args, { cwd: frontend, stdio: "inherit", windowsHide: true });
-    child.once("error", reject);
-    child.once("exit", code => code === 0 ? resolve() : reject(new Error("Сборка frontend завершилась с ошибкой.")));
-  });
-}
-await compile([fileURLToPath(new URL("../frontend/node_modules/typescript/bin/tsc", import.meta.url)), "--noEmit", "-p", "tsconfig.app.json"]);
-await compile(["local-vite.mjs", "build"]);
-const children = [];
+const frontend = fileURLToPath(new URL('../frontend/', import.meta.url));
+const backend = fileURLToPath(new URL('../backend/', import.meta.url));
+const children = new Set();
 let closing = false;
-const stop = (code = 0) => {
-  if (closing) return;
+function stop(code = 0) {
   closing = true;
   for (const child of children) child.kill();
   process.exitCode = code;
-};
-for (const [cwd, args] of [
-  [backend, ["--env-file-if-exists=.env", "src/server.js"]],
-  [frontend, ["local-vite.mjs", "preview"]],
-]) {
-  const child = spawn(process.execPath, args, {
-    cwd, stdio: "inherit", windowsHide: true,
-    // Fixed loopback ports keep this isolated from the old backend on 3001.
-    env: { ...process.env, PORT: "3002", HOST: "127.0.0.1" },
-  });
-  children.push(child);
-  child.once("error", () => { console.error("Не удалось запустить компонент."); stop(1); });
-  child.once("exit", code => { if (!closing) stop(code || 1); });
 }
-process.on("SIGINT", () => stop());
-process.on("SIGTERM", () => stop());
-console.log(`SteppeX local: http://127.0.0.1:5173\nWorkspace: ${root}\nCtrl+C stops both processes. No paid requests run automatically.`);
+process.on('SIGINT', () => stop());
+process.on('SIGTERM', () => stop());
+
+function launch(cwd, args, ipc = false) {
+  if (closing) throw new Error('Запуск отменён.');
+  const child = spawn(process.execPath, args, {
+    cwd, windowsHide: true, stdio: ipc ? ['inherit', 'inherit', 'inherit', 'ipc'] : 'inherit',
+    env: { ...process.env, PORT: '3002', HOST: '127.0.0.1' },
+  });
+  children.add(child);
+  child.once('exit', () => children.delete(child));
+  return child;
+}
+async function runStep(cwd, args) {
+  const child = launch(cwd, args);
+  await new Promise((resolve, reject) => {
+    child.once('error', () => reject(new Error('Не удалось запустить проверку окружения или сборку.')));
+    child.once('exit', code => code === 0 ? resolve() : reject(new Error('Запуск остановлен. Исправьте ошибку, указанную выше.')));
+  });
+}
+async function startService(cwd, args, name) {
+  const child = launch(cwd, args, true);
+  child.once('exit', () => { if (!closing) stop(1); });
+  child.once('error', () => { if (!closing) stop(1); });
+  await waitForReady(child, name);
+}
+
+try {
+  const [major, minor] = process.versions.node.split('.').map(Number);
+  if (major < 22 || (major === 22 && minor < 9)) throw new Error('Нужен Node.js 22.9 или новее.');
+  if (!existsSync(new URL('../frontend/node_modules/typescript/bin/tsc', import.meta.url))
+      || !existsSync(new URL('../backend/node_modules/express/package.json', import.meta.url))) {
+    throw new Error('Сначала: npm.cmd --prefix backend ci и npm.cmd --prefix frontend ci');
+  }
+  await assertPortFree(3002);
+  await assertPortFree(5173);
+  await runStep(backend, ['--env-file-if-exists=.env', 'scripts/check-env.js']);
+  await runStep(frontend, ['node_modules/typescript/bin/tsc', '--noEmit', '-p', 'tsconfig.app.json']);
+  await runStep(frontend, ['local-vite.mjs', 'build']);
+  await startService(backend, ['--env-file-if-exists=.env', 'src/server.js'], 'backend');
+  await startService(frontend, ['local-vite.mjs', 'preview'], 'frontend');
+  console.log('SteppeX готов: http://127.0.0.1:5173\nCtrl+C останавливает оба сервера. Платных запросов при запуске нет.');
+} catch (error) {
+  if (!closing) console.error(error.message);
+  stop(closing ? (process.exitCode ?? 1) : 1);
+}

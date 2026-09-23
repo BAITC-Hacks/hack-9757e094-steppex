@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run build && node local-vite.mjs preview",
+    "dev": "node ../scripts/dev.mjs",
     "build": "tsc --noEmit -p tsconfig.app.json && node local-vite.mjs build",
     "preview": "node local-vite.mjs preview"
   },
