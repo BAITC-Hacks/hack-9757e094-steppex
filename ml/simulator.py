@@ -79,9 +79,9 @@ INITIATIVES = {
 GLOBAL_CONFLICTS = (frozenset(("M1", "M3")),)
 SAME_DISTRICT_CONFLICTS = (frozenset(("M4", "M7")), frozenset(("M5", "M13")))
 SYNERGIES = {
-    frozenset(("M1", "M2")): ("T1", 2),
-    frozenset(("M10", "M12")): ("B1", 2),
-    frozenset(("M5", "M6")): ("E2", 2),
+    frozenset(("M1", "M2")): ("T1", 2, "M1"),
+    frozenset(("M10", "M12")): ("B1", 2, "M10"),
+    frozenset(("M5", "M6")): ("E2", 2, "M5"),
 }
 
 
@@ -202,14 +202,14 @@ def simulate(decisions: Iterable[Decision | dict[str, Any]], budget: int = BUDGE
     selected_ids = {p.initiative_id for p in picks}
     by_id = {p.initiative_id: p for p in picks}
     synergy_details = []
-    for pair, (indicator, bonus) in SYNERGIES.items():
+    for pair, (indicator, bonus, target_id) in SYNERGIES.items():
         if pair.issubset(selected_ids):
-            first_id = next(p.initiative_id for p in picks if p.initiative_id in pair)
-            first_measure = INITIATIVES[first_id]
-            target_districts = DISTRICTS if first_measure.scope == "city" else (by_id[first_id].district,)
+            target_measure = INITIATIVES[target_id]
+            target_districts = DISTRICTS if target_measure.scope == "city" else (by_id[target_id].district,)
             for district in target_districts:
                 updated[district][indicator] += bonus
-            synergy_details.append(f"Сработала синергия {first_id} + {next(iter(pair - {first_id}))}: +{bonus} к {indicator}.")
+            pair_label = " + ".join(sorted(pair))
+            synergy_details.append(f"Сработала синергия {pair_label}: +{bonus} к {indicator} в районе меры {target_id}.")
 
     for district in DISTRICTS:
         for indicator in INDICATORS:
