@@ -14,6 +14,13 @@ BUDGET = 100
 HORIZON = 8
 
 DISTRICTS = ("Есиль", "Алматы", "Сарыарка", "Байконур", "Нура")
+DISTRICT_IDS = {
+    "esil": "Есиль",
+    "almaty": "Алматы",
+    "saryarka": "Сарыарка",
+    "baikonur": "Байконур",
+    "nura": "Нура",
+}
 POPULATION = {
     "Есиль": 0.27,
     "Алматы": 0.24,
@@ -114,9 +121,11 @@ def _normalize_decisions(decisions: Iterable[Decision | dict[str, Any]]) -> list
         if isinstance(item, Decision):
             normalized.append(item)
         elif isinstance(item, dict):
+            district = item.get("district", item.get("districtId"))
+            district = DISTRICT_IDS.get(district, district)
             normalized.append(Decision(
                 str(item.get("initiative_id", item.get("measureId", item.get("id", "")))).upper(),
-                item.get("district", item.get("districtId")),
+                district,
             ))
         else:
             raise TypeError("Каждое решение должно быть Decision или словарём.")
@@ -285,7 +294,22 @@ def simulate_scenario(decisions: Iterable[Decision | dict[str, Any]], budget: in
     result = simulate(decisions, budget=budget)
     payload = result.to_dict()
     payload["total_score"] = result.score
-    payload["category_scores"] = result.district_scores
+    category_scores = {}
+    if result.valid:
+        groups = {
+            "transport": ("T1", "T2"), "ecology": ("E1", "E2"),
+            "social": ("S1", "S2"), "safety": ("B1", "B2"),
+            "services": ("C1", "C2"),
+        }
+        for direction_id in ("transport", "ecology", "social", "safety", "services"):
+            # Indicator directions are fixed by the source dataset.
+            keys = groups[direction_id]
+            weight_sum = sum(WEIGHTS[k] for k in keys)
+            category_scores[direction_id] = round(sum(
+                POPULATION[d] * sum(WEIGHTS[k] * result.indicators[d][k] for k in keys) / weight_sum
+                for d in DISTRICTS
+            ), 2)
+    payload["category_scores"] = category_scores if result.valid else None
     payload["budget_status"] = {
         "total": budget,
         "spent": result.total_cost,
