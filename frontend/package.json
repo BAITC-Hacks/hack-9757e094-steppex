@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "dev": "npm run build && node local-vite.mjs preview",
+    "build": "tsc --noEmit -p tsconfig.app.json && node local-vite.mjs build",
+    "preview": "node local-vite.mjs preview"
   },
   "dependencies": {
     "react": "^18.3.1",
