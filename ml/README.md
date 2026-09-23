@@ -29,3 +29,27 @@ ML-модуль отвечает за оценку сценария, агрег�
 - сильные стороны;
 - риски и компромиссы;
 - предложения по улучшению сценария.
+
+## Реализация в `simulator.py`
+
+Числовой расчёт детерминированный: обучающий датасет для ML-модели в задаче не задан, поэтому модуль применяет точные эффекты мер, лаги, синергии, несовместимости и формулу из датасета организаторов. Текстовое объяснение строится по рассчитанным значениям.
+
+Запуск из папки `ml/`:
+
+```python
+from simulator import simulate_scenario, explain, example_scenario, simulate
+
+result = simulate(example_scenario())
+print(explain(result))
+
+# Формат решений для общего JSON/API-контракта:
+payload = simulate_scenario([
+    {"measureId": "M7", "districtId": "nura"},
+    {"measureId": "M8", "districtId": "nura"},
+    {"measureId": "M10", "districtId": "nura"},
+    {"measureId": "M12"},
+    {"measureId": "M5", "districtId": "saryarka"},
+])
+```
+
+Публичные функции: `validate(decisions)`, `simulate(decisions)`, `simulate_scenario(decisions)`, `explain(result)`. Не размещайте API-ключи в ML-папке или браузере.
