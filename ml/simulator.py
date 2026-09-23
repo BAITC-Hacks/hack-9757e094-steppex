@@ -237,7 +237,8 @@ def simulate(decisions: Iterable[Decision | dict[str, Any]], budget: int = BUDGE
     for impact in impacts:
         initiative = INITIATIVES[impact["id"]]
         gains = impact["effects_per_target"]
-        strongest = max(gains, key=lambda k: abs(gains[k]))
+        # Сопоставляем показатели с учётом их веса в городском Score.
+        strongest = max(gains, key=lambda k: abs(gains[k]) * WEIGHTS[k])
         strengths.append(f"{impact['id']} улучшает показатель «{INDICATOR_NAMES[strongest]}» на {gains[strongest]:g} пункта в {impact['district']}.")
     critical_indicators = [(d, k, updated[d][k]) for d in DISTRICTS for k in INDICATORS if updated[d][k] < 40]
     if critical_indicators:
