@@ -24,7 +24,7 @@ const validReport = {
   ],
   recommendedStrategyId: "quality",
   limitations: "Это учебная модель; поиск ограничен соседними вариантами.",
-  nextQuestion: "Что важнее: резерв или общий результат?",
+  nextQuestion: "Желаете ли вы чтобы мы помогли вам решить этот вопрос?",
 };
 function fakeClient(report = validReport, inspect = {}) {
   let round = 0;
@@ -88,6 +88,15 @@ test("unknown risk evidence is rejected", async () => {
     (e) => e.code === "AI_UNKNOWN_EVIDENCE",
   );
 });
+test("AI report must end with the requested follow-up question", async () => {
+  await assert.rejects(
+    createCityAgent({
+      engine,
+      client: fakeClient({ ...validReport, nextQuestion: "Какой вариант выбрать?" }),
+    }).analyze({ decisions: data.exampleDecisions }),
+    (e) => e.code === "AI_INVALID_REPORT",
+  );
+});
 test("numeric claims in model prose are rejected", async () => {
   await assert.rejects(
     createCityAgent({
@@ -128,3 +137,4 @@ test("usage sums every model request and applies cached-input pricing", async ()
   assert.equal(result.usage.cachedInputTokens, 6000);
   assert.equal(result.usage.estimatedUsd, 0.01215);
 });
+

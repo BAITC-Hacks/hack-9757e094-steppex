@@ -8,6 +8,7 @@ explain those already-computed results.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from math import isfinite
 from typing import Any, Iterable
 
 BUDGET = 100
@@ -116,15 +117,25 @@ class SimulationResult:
 
 
 def _normalize_decisions(decisions: Iterable[Decision | dict[str, Any]]) -> list[Decision]:
+    if decisions is None or isinstance(decisions, (str, bytes, dict)):
+        raise TypeError("Решения должны быть списком из пяти объектов.")
     normalized = []
     for item in decisions:
         if isinstance(item, Decision):
-            normalized.append(item)
+            if not isinstance(item.initiative_id, str):
+                raise TypeError("ID меры должен быть строкой.")
+            if item.district is not None and not isinstance(item.district, str):
+                raise TypeError("Название района должно быть строкой.")
+            normalized.append(Decision(item.initiative_id.strip().upper(), item.district.strip() if item.district else None))
         elif isinstance(item, dict):
             district = item.get("district", item.get("districtId"))
-            district = DISTRICT_IDS.get(district, district)
+            if isinstance(district, str):
+                district = DISTRICT_IDS.get(district.strip().lower(), district.strip())
+            initiative_id = item.get("initiative_id", item.get("measureId", item.get("id", "")))
+            if not isinstance(initiative_id, str):
+                raise TypeError("ID меры должен быть строкой.")
             normalized.append(Decision(
-                str(item.get("initiative_id", item.get("measureId", item.get("id", "")))).upper(),
+                initiative_id.strip().upper(),
                 district,
             ))
         else:
@@ -134,6 +145,12 @@ def _normalize_decisions(decisions: Iterable[Decision | dict[str, Any]]) -> list
 
 def validate(decisions: Iterable[Decision | dict[str, Any]], budget: int = BUDGET) -> tuple[list[Decision], list[str]]:
     """Validate all game rules. Invalid scenarios are never scored."""
+    budget_is_integer = type(budget) is int or (
+        isinstance(budget, float) and isfinite(budget) and budget.is_integer()
+    )
+    if not budget_is_integer or budget < 0:
+        return [], ["Бюджет должен быть неотрицательным целым числом."]
+    budget = int(budget)
     try:
         picks = _normalize_decisions(decisions)
     except (TypeError, ValueError) as exc:
@@ -156,7 +173,7 @@ def validate(decisions: Iterable[Decision | dict[str, Any]], budget: int = BUDGE
     for p in valid_picks:
         initiative = INITIATIVES[p.initiative_id]
         if initiative.scope == "district":
-            if p.district not in DISTRICTS:
+            if not isinstance(p.district, str) or p.district not in DISTRICTS:
                 errors.append(f"Для {p.initiative_id} нужно указать район из списка: {', '.join(DISTRICTS)}.")
         elif p.district is not None:
             errors.append(f"Для городской меры {p.initiative_id} район указывать нельзя.")
@@ -181,7 +198,8 @@ def simulate(decisions: Iterable[Decision | dict[str, Any]], budget: int = BUDGE
     picks, errors = validate(decisions, budget)
     if errors:
         cost = sum(INITIATIVES[p.initiative_id].cost for p in picks if p.initiative_id in INITIATIVES)
-        return SimulationResult(False, errors, total_cost=cost, remaining_budget=budget - cost)
+        safe_budget = budget if isinstance(budget, int) and not isinstance(budget, bool) and budget >= 0 else BUDGET
+        return SimulationResult(False, errors, total_cost=cost, remaining_budget=safe_budget - cost)
 
     updated = {d: dict(values) for d, values in BASELINE.items()}
     impacts = []
@@ -270,7 +288,7 @@ def explain(result: SimulationResult) -> str:
     direction = "вырос" if result.score_change >= 0 else "снизился"
     lines = [
         f"Astana Quality of Life Score: {result.score:.2f}/100 ({direction} на {abs(result.score_change):.2f} к базе {result.baseline_score:.2f}).",
-        f"Стоимость решений: {result.total_cost}/{BUDGET}; остаток: {result.remaining_budget}.",
+        f"Стоимость решений: {result.total_cost}/{result.total_cost + result.remaining_budget}; остаток: {result.remaining_budget}.",
         f"Средний балл города: {result.city_average:.2f}; слабейший район: {result.weakest_district} ({result.district_scores[result.weakest_district]:.2f}).",
         f"Критических значений ниже 40: {result.critical_count}.",
         "Сильные стороны: " + " ".join(result.strengths or []),
@@ -323,4 +341,5 @@ def simulate_scenario(decisions: Iterable[Decision | dict[str, Any]], budget: in
 if __name__ == "__main__":
     result = simulate(example_scenario())
     print(explain(result))
+
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Catalog, Decision, Health, Simulation, Strategy, AgentReport, Validation } from './api';
-import { request, requestStartup } from './api';
+import { request } from './api';
 
 const labels: Record<string, string> = { quality: 'Качество жизни', equity: 'Слабый район', reserve: 'Бюджетный резерв' };
 const number = (value: number) => value.toFixed(2);
@@ -21,9 +21,9 @@ export default function App() {
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([
-      requestStartup<Catalog>('/api/catalog', controller.signal),
-      requestStartup<Health>('/api/health', controller.signal),
-    ]).then(([data, status]) => { if (!controller.signal.aborted) { setCatalog(data); setHealth(status); setError(''); } })
+      request<Catalog>('/api/catalog', undefined, controller.signal),
+      request<Health>('/api/health', undefined, controller.signal),
+    ]).then(([data, status]) => { setCatalog(data); setHealth(status); })
       .catch(e => { if (!controller.signal.aborted) setError(e.message); });
     return () => controller.abort();
   }, []);
@@ -148,7 +148,6 @@ export default function App() {
             {result && <p>Изменение: <span className={result.scoreDelta >= 0 ? 'ok' : 'danger'}>{result.scoreDelta >= 0 ? '+' : ''}{number(result.scoreDelta)}</span></p>}
           </div>
           {result?.ml && <div className="ml-box"><strong>✓ ML-расчёт подтверждён</strong><p>Python: {number(result.ml.score)}. Проверены бюджет, Score и показатели всех районов.</p><small>Правила и формулы, не обученная нейросеть.</small></div>}
-          {result && <div className="result-block"><h3>Вычисленные риски</h3><ul>{(result.risks ?? []).map(r => <li key={r.id}>{r.message}</li>)}</ul></div>}
           <div className="ai-box">
             <h3>ИИ-советник</h3>
             <p className="hint">{health?.aiConfigured ? 'Кнопка ниже запускает платный анализ. Ключ остаётся на backend.' : 'Без ключа доступны расчёты, ML-проверка и стратегии. Ответ ИИ не имитируется.'}</p>
@@ -159,7 +158,7 @@ export default function App() {
               <h4>{report.analysis.headline}</h4><p>{report.analysis.summary}</p>
               <h4>Сильные стороны</h4><ul>{report.analysis.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
               <h4>Компромиссы</h4><ul>{report.analysis.tradeoffs.map((s, i) => <li key={i}>{s}</li>)}</ul>
-              <h4>Риски</h4><ul>{report.analysis.risks.map((r, i) => <li key={i}>{r.explanation}</li>)}</ul>
+              <h4>Анализ рисков от ИИ</h4><ul>{report.analysis.risks.map((r, i) => <li key={i}>{r.explanation}</li>)}</ul>
               <h4>Рекомендации</h4><ul>{report.analysis.recommendations.map((r, i) => <li key={i}>{labels[r.strategyId]}: {r.reason}</li>)}</ul>
               <p className="hint">{report.analysis.limitations}</p><p>{report.analysis.nextQuestion}</p>
               {report.usage && <p className="hint">Запросов модели: {report.usage.modelRequests}. {report.usage.estimatedUsd != null ? 'Оценка стоимости: $' + report.usage.estimatedUsd.toFixed(4) : 'Стоимость не определена; проверьте Usage у провайдера.'}</p>}
@@ -174,3 +173,4 @@ export default function App() {
     </div>
   );
 }
+
