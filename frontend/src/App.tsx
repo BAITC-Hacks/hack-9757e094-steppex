@@ -126,6 +126,12 @@ export default function App() {
     }
   };
 
+  const resetSelection = () => {
+    setSelected({});
+    setResult(null);
+    setError(null);
+  };
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -164,9 +170,14 @@ export default function App() {
               <p className="label">Решения</p>
               <h2>Выберите 5 приоритетов</h2>
             </div>
-            <button className="calc-btn" onClick={handleCalculate} disabled={selectedCount === 0}>
-              Рассчитать сценарий
-            </button>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button className="calc-btn" onClick={handleCalculate} disabled={selectedCount === 0}>
+                Рассчитать сценарий
+              </button>
+              <button className="filter-btn" onClick={resetSelection} style={{ padding: '10px 14px' }}>
+                Сбросить
+              </button>
+            </div>
           </div>
 
           <div className="filter-row">
@@ -180,6 +191,10 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          <p className="state-text" style={{ marginTop: 0, marginBottom: 18 }}>
+            Выбрано: <strong>{selectedCount}/5</strong> · бюджет: <strong>{remaining} млн</strong>
+          </p>
 
           {loading ? (
             <p className="state-text">Загрузка вариантов...</p>

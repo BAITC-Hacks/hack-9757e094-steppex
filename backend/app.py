@@ -55,7 +55,11 @@ INTERVENTIONS = [
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "service": "steppex-simulator",
+        "version": "1.0.0",
+    }
 
 
 @app.get("/api/interventions", response_model=List[Intervention])
