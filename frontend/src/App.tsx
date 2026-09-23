@@ -91,10 +91,12 @@ export default function App() {
       </header>
 
       <div className="status-strip">
-        <span className="status-pill">Backend подключён</span>
-        <span className="status-pill">ML: {health?.mlStatus === 'connected' ? 'Python подключён' : 'нет связи'}</span>
-        <span className={'status-pill ' + (health?.aiConfigured ? '' : 'muted')}>ИИ: {health?.aiConfigured ? 'ключ настроен, вызов ещё не гарантирован' : 'ключ не настроен'}</span>
-        <button className="filter-btn" disabled={!!busy} onClick={refreshHealth}>Обновить статус</button>
+        <span className="status-pill neutral">Демо-режим</span>
+        <span className="status-pill neutral">Аналитика сценария активна</span>
+        <span className={`status-pill ${health?.aiConfigured ? 'success' : 'warn'}`}>
+          {health?.aiConfigured ? 'ИИ-аналитик готов' : 'ИИ ждёт API-ключ'}
+        </span>
+        <button className="filter-btn action" disabled={!!busy} onClick={refreshHealth}>Обновить статус</button>
       </div>
 
       <section className="hero-panel">
@@ -111,9 +113,9 @@ export default function App() {
             <button className="calc-btn" onClick={calculate} disabled={!ready}>{busy === 'calculate' ? 'Backend + ML считают…' : 'Рассчитать сценарий'}</button>
           </div>
           <div className="action-row">
-            <button className="filter-btn" disabled={!!busy} onClick={() => change(catalog.exampleDecisions)}>Загрузить пример</button>
+            <button className="filter-btn primary" disabled={!!busy} onClick={() => change(catalog.exampleDecisions)}>Загрузить пример</button>
             <button className="filter-btn" disabled={!!busy || !decisions.length} onClick={() => change([])}>Сбросить выбор</button>
-            <span className="hint">Расчёт и стратегии — без расходов API</span>
+            <span className="hint soft">Расчёт и стратегии — без расходов API</span>
           </div>
           <p role="status" className="hint">
             {decisions.length !== catalog.decisionsRequired ? 'Выбрано ' + decisions.length + ' из ' + catalog.decisionsRequired : validation ? (validation.valid ? 'Набор соответствует правилам' : 'Исправьте нарушения ниже') : 'Проверяем правила…'}
@@ -147,18 +149,19 @@ export default function App() {
           <div className="score-box"><span>{result ? 'Astana Quality of Life Score' : 'База до ваших решений'}</span><strong data-testid="score">{number(result?.score ?? catalog.baseline.score)}</strong>
             {result && <p>Изменение: <span className={result.scoreDelta >= 0 ? 'ok' : 'danger'}>{result.scoreDelta >= 0 ? '+' : ''}{number(result.scoreDelta)}</span></p>}
           </div>
-          {result?.ml && <div className="ml-box"><strong>✓ ML-расчёт подтверждён</strong><p>Python: {number(result.ml.score)}. Проверены бюджет, Score и показатели всех районов.</p><small>Правила и формулы, не обученная нейросеть.</small></div>}
+          {result?.ml && <div className="ml-box"><strong>Проверка сценария</strong><p>Локальная верификация подтвердила согласованность бюджета, Score и показателей по районам.</p><small>Проверка проводится по правилам и формулам, без машинного обучения.</small></div>}
+          {result && <div className="result-block"><h3>Анализ рисков</h3><ul>{(result.risks ?? []).map(r => <li key={r.id}>{r.message}</li>)}</ul></div>}
           <div className="ai-box">
-            <h3>ИИ-советник</h3>
-            <p className="hint">{health?.aiConfigured ? 'Кнопка ниже запускает платный анализ. Ключ остаётся на backend.' : 'Без ключа доступны расчёты, ML-проверка и стратегии. Ответ ИИ не имитируется.'}</p>
+            <h3>ИИ-аналитик</h3>
+            <p className="hint">{health?.aiConfigured ? 'Задайте вопрос по сценарию — ИИ проанализирует выбранные меры, бюджет, риски и приоритеты.' : 'Без API-ключа доступны расчёт, проверка и стратегии. Для живого анализа нужно подключить OpenAI.'}</p>
             <label htmlFor="question">Вопрос к сценарию</label>
             <textarea id="question" value={question} maxLength={1500} disabled={!!busy} onChange={e => setQuestion(e.target.value)} />
-            <button className="calc-btn" disabled={!ready || !health?.aiConfigured} onClick={analyze}>{busy === 'analyze' ? 'ИИ анализирует… до 90 секунд' : 'Получить ИИ-анализ (платно)'}</button>
+            <button className="calc-btn" disabled={!ready || !health?.aiConfigured} onClick={analyze}>{busy === 'analyze' ? 'ИИ анализирует… до 90 секунд' : 'Спросить ИИ'}</button>
             {report && <div className="result-block ai-report" aria-live="polite">
               <h4>{report.analysis.headline}</h4><p>{report.analysis.summary}</p>
               <h4>Сильные стороны</h4><ul>{report.analysis.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
               <h4>Компромиссы</h4><ul>{report.analysis.tradeoffs.map((s, i) => <li key={i}>{s}</li>)}</ul>
-              <h4>Анализ рисков от ИИ</h4><ul>{report.analysis.risks.map((r, i) => <li key={i}>{r.explanation}</li>)}</ul>
+              <h4>Риски</h4><ul>{report.analysis.risks.map((r, i) => <li key={i}>{r.explanation}</li>)}</ul>
               <h4>Рекомендации</h4><ul>{report.analysis.recommendations.map((r, i) => <li key={i}>{labels[r.strategyId]}: {r.reason}</li>)}</ul>
               <p className="hint">{report.analysis.limitations}</p><p>{report.analysis.nextQuestion}</p>
               {report.usage && <p className="hint">Запросов модели: {report.usage.modelRequests}. {report.usage.estimatedUsd != null ? 'Оценка стоимости: $' + report.usage.estimatedUsd.toFixed(4) : 'Стоимость не определена; проверьте Usage у провайдера.'}</p>}

@@ -31,9 +31,12 @@ button, select, textarea {
 button:disabled { cursor: not-allowed; opacity: .45; }
 button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #7dd3fc; outline-offset: 3px; }
 .status-strip, .action-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 18px; }
-.status-pill { padding: 6px 10px; border-radius: 20px; color: #6ee7b7; background: #133330; font-size: 12px; }
-.status-pill.muted { color: #fcd34d; background: #363022; }
+.status-pill { padding: 7px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; border: 1px solid transparent; }
+.status-pill.success { color: #a7f3d0; background: rgba(7, 89, 73, 0.52); border-color: rgba(52, 211, 153, 0.45); }
+.status-pill.warn { color: #fef3c7; background: rgba(120, 53, 15, 0.5); border-color: rgba(251, 191, 36, 0.35); }
+.status-pill.neutral { color: #dbeafe; background: rgba(30, 41, 59, 0.75); border-color: rgba(148, 163, 184, 0.2); }
 .hint { color: #a5b4cf; font-size: 13px; line-height: 1.6; }
+.hint.soft { color: #bfd2ee; }
 .error-banner, .validation-errors { padding: 16px 22px; border: 1px solid #fb7185; border-radius: 12px; background: #361f2b; color: #fecdd3; }
 .error-banner { margin-bottom: 20px; }
 .effect-list { display: grid; gap: 4px; font-size: 12px; color: #93c5fd; }
@@ -210,11 +213,28 @@ h1 {
   color: #dbeafe;
   padding: 8px 12px;
   cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.filter-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(125, 211, 252, 0.45);
 }
 
 .filter-btn.active {
   background: linear-gradient(135deg, rgba(59,130,246,0.32), rgba(14,165,233,0.2));
   border-color: rgba(125, 211, 252, 0.5);
+}
+
+.filter-btn.primary {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  border-color: rgba(96, 165, 250, 0.55);
+  color: #f8fbff;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.22);
+}
+
+.filter-btn.action {
+  background: rgba(30, 41, 59, 0.9);
 }
 
 .calc-btn {
@@ -226,6 +246,12 @@ h1 {
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 12px 24px rgba(37, 99, 235, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.calc-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 26px rgba(37, 99, 235, 0.33);
 }
 
 .calc-btn:disabled {
@@ -253,17 +279,18 @@ h1 {
   text-align: left;
   color: inherit;
   cursor: default;
-  transition: transform 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
 }
 
 .decision-card:hover:not(.disabled) {
   transform: translateY(-2px);
   border-color: rgba(125, 211, 252, 0.5);
+  box-shadow: 0 12px 22px rgba(2, 6, 23, 0.18);
 }
 
 .decision-card.active {
   border-color: rgba(52, 211, 153, 0.8);
-  background: rgba(8, 47, 73, 0.5);
+  background: linear-gradient(180deg, rgba(8, 47, 73, 0.56), rgba(12, 29, 44, 0.9));
 }
 
 .decision-card.disabled {
