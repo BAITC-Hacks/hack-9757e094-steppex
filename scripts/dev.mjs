@@ -44,7 +44,7 @@ try {
   if (major < 22 || (major === 22 && minor < 9)) throw new Error('Нужен Node.js 22.9 или новее.');
   if (!existsSync(new URL('../frontend/node_modules/typescript/bin/tsc', import.meta.url))
       || !existsSync(new URL('../backend/node_modules/express/package.json', import.meta.url))) {
-    throw new Error('Сначала: pnpm --dir backend install --frozen-lockfile и pnpm --dir frontend install --frozen-lockfile');
+    throw new Error('Сначала: npm.cmd --prefix backend ci и npm.cmd --prefix frontend ci');
   }
   await assertPortFree(3002);
   await assertPortFree(5173);
