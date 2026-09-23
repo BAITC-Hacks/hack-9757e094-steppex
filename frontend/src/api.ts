@@ -21,7 +21,10 @@ export type Strategy = {
   id: string; title: string; changed: boolean; scoreGain: number; simulation: Simulation; risks: Risk[];
   replacement: { from: Decision; to: Decision } | null;
 };
+export type Conversation = { id: string; revision: number; priority: 'quality' | 'equity' | 'reserve' | null; turnsRemaining: number; expiresAt: number };
+export type DialogueResponse = { conversation: Conversation; kind: 'clarification' | 'analysis' | 'applied'; message: string; report?: AgentReport; simulation?: Simulation };
 export type AgentReport = {
+  conversation?: Conversation;
   simulation: Simulation; strategies: Strategy[]; risks: Risk[];
   analysis: { headline: string; summary: string; strengths: string[]; tradeoffs: string[];
     risks: { evidenceId: string; explanation: string }[];
@@ -40,7 +43,7 @@ export async function request<T>(path: string, body?: unknown, signal?: AbortSig
   const abort = () => controller.abort();
   signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) controller.abort();
-  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, path === '/api/analyze' ? 100000 : 20000);
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, path === '/api/analyze' || /^\/api\/conversations\/[^/]+\/messages$/.test(path) ? 100000 : 20000);
   try {
     const response = await fetch(path, {
       method: body === undefined ? 'GET' : 'POST',

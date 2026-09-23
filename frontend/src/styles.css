@@ -385,6 +385,17 @@ h1 {
   margin-top: 8px;
 }
 
+.advisor-dialogue { margin-top: 18px; scroll-margin-top: 16px; }
+.chat-history { max-height: 600px; overflow-y: auto; display: grid; gap: 12px; padding-right: 6px; }
+.chat-message { padding: 14px; border: 1px solid rgba(148, 163, 184, .22); border-radius: 14px; overflow-wrap: anywhere; }
+.chat-message.user { background: rgba(37, 99, 235, .18); }
+.chat-message.assistant { background: rgba(15, 23, 42, .5); }
+.chat-message > strong { color: #93c5fd; font-size: .85rem; }
+.chat-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.chat-options { display: grid; gap: 10px; margin-top: 18px; }
+.chat-option { padding: 12px; border: 1px solid rgba(125, 211, 252, .25); border-radius: 12px; }
+.advisor-dialogue form { display: grid; gap: 8px; }
+
 .ai-box h3 {
   margin-top: 0;
   margin-bottom: 10px;

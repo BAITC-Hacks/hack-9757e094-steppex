@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { Catalog, Decision, Health, Simulation, Strategy, AgentReport, Validation } from './api';
-import { request } from './api';
+import { request, requestStartup } from './api';
+import { AdvisorDialogue, ReportView } from './AdvisorDialogue';
 
-const labels: Record<string, string> = { quality: 'Качество жизни', equity: 'Слабый район', reserve: 'Бюджетный резерв' };
 const number = (value: number) => value.toFixed(2);
 
 export default function App() {
@@ -21,9 +21,9 @@ export default function App() {
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([
-      request<Catalog>('/api/catalog', undefined, controller.signal),
-      request<Health>('/api/health', undefined, controller.signal),
-    ]).then(([data, status]) => { setCatalog(data); setHealth(status); })
+      requestStartup<Catalog>('/api/catalog', controller.signal),
+      requestStartup<Health>('/api/health', controller.signal),
+    ]).then(([data, status]) => { if (!controller.signal.aborted) { setCatalog(data); setHealth(status); setError(''); } })
       .catch(e => { if (!controller.signal.aborted) setError(e.message); });
     return () => controller.abort();
   }, []);
@@ -90,7 +90,7 @@ export default function App() {
         <span className="status-pill neutral">Демо-режим</span>
         <span className="status-pill neutral">Сценарный анализ активен</span>
         <span className={`status-pill ${health?.aiConfigured ? 'success' : 'warn'}`}>
-          {health?.aiConfigured ? 'ИИ-аналитик готов' : 'ИИ ждёт API-ключ'}
+          {health?.aiConfigured ? 'ИИ: ключ настроен' : 'ИИ ждёт API-ключ'}
         </span>
       </div>
 
@@ -145,30 +145,26 @@ export default function App() {
             {result && <p>Изменение: <span className={result.scoreDelta >= 0 ? 'ok' : 'danger'}>{result.scoreDelta >= 0 ? '+' : ''}{number(result.scoreDelta)}</span></p>}
           </div>
           {result?.ml && <div className="ml-box"><strong>Проверка сценария</strong><p>Локальная верификация подтвердила согласованность бюджета, Score и показателей по районам.</p><small>Проверка проводится по правилам и формулам, без машинного обучения.</small></div>}
-          {result && <div className="result-block"><h3>Анализ рисков</h3><ul>{(result.risks ?? []).map(r => <li key={r.id}>{r.message}</li>)}</ul></div>}
           <div className="ai-box">
             <h3>ИИ-аналитик</h3>
             <p className="hint">{health?.aiConfigured ? 'Задайте вопрос по сценарию — ИИ проанализирует выбранные меры, бюджет, риски и приоритеты.' : 'Без API-ключа доступны расчёт, проверка и стратегии. Для живого анализа нужно подключить OpenAI.'}</p>
             <label htmlFor="question">Вопрос к сценарию</label>
             <textarea id="question" value={question} maxLength={1500} disabled={!!busy} onChange={e => setQuestion(e.target.value)} />
-            <button className="calc-btn" disabled={!ready || !health?.aiConfigured} onClick={analyze}>{busy === 'analyze' ? 'ИИ анализирует… до 90 секунд' : 'Спросить ИИ'}</button>
-            {report && <div className="result-block ai-report" aria-live="polite">
-              <h4>{report.analysis.headline}</h4><p>{report.analysis.summary}</p>
-              <h4>Сильные стороны</h4><ul>{report.analysis.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
-              <h4>Компромиссы</h4><ul>{report.analysis.tradeoffs.map((s, i) => <li key={i}>{s}</li>)}</ul>
-              <h4>Риски</h4><ul>{report.analysis.risks.map((r, i) => <li key={i}>{r.explanation}</li>)}</ul>
-              <h4>Рекомендации</h4><ul>{report.analysis.recommendations.map((r, i) => <li key={i}>{labels[r.strategyId]}: {r.reason}</li>)}</ul>
-              <p className="hint">{report.analysis.limitations}</p><p>{report.analysis.nextQuestion}</p>
-              {report.usage && <p className="hint">Запросов модели: {report.usage.modelRequests}. {report.usage.estimatedUsd != null ? 'Оценка стоимости: $' + report.usage.estimatedUsd.toFixed(4) : 'Стоимость не определена; проверьте Usage у провайдера.'}</p>}
-            </div>}
+            <button className="calc-btn" disabled={!ready || !health?.aiConfigured} onClick={analyze}>{busy === 'analyze' ? 'ИИ анализирует… до 90 секунд'  : 'Спросить ИИ (платно)'}</button>
+            {report && (report.conversation ? <AdvisorDialogue key={report.conversation.id}
+              initial={{ ...report, conversation: report.conversation }} disabled={!!busy}
+              onBusy={value => setBusy(value ? 'analyze' : null)}
+              onResult={(simulation, alternatives) => { setResult(simulation); setStrategies(alternatives); }}
+              onApply={simulation => { setDecisions(simulation.decisions); setValidation(null); setResult(simulation); setStrategies([]); setError(''); }}
+            /> : <ReportView report={report} />)}
+
           </div>
         </aside>
       </main>
 
       {result && <section className="panel below-panel"><p className="label">Проверяемые результаты</p><h2>Как изменились районы</h2><div className="table-scroll"><table><thead><tr><th>Район</th><th>Было</th><th>Стало</th><th>Изменение</th></tr></thead><tbody>{result.districts.map(d => <tr key={d.id}><th>{d.name}</th><td>{number(d.baselineScore)}</td><td>{number(d.score)}</td><td className={d.scoreDelta >= 0 ? 'ok' : 'danger'}>{d.scoreDelta >= 0 ? '+' : ''}{number(d.scoreDelta)}</td></tr>)}</tbody></table></div></section>}
-      {!!strategies.length && <section className="panel below-panel"><p className="label">Три приоритета</p><h2>Сравнение стратегий</h2><p className="hint">Замена или перенос одного решения. Это локальный поиск, не доказанный глобальный оптимум; варианты могут совпадать.</p><div className="strategy-grid">{strategies.map(s => <article className="strategy-card" key={s.id}><h3>{s.title}</h3><div className="summary-row"><span>Score</span><strong>{number(s.simulation.score)}</strong></div><p>Остаток: {s.simulation.budget.remaining} ед. · прирост: {number(s.scoreGain)}</p>{s.replacement && s.changed && <p className="hint">{describe(s.replacement.from)} → {describe(s.replacement.to)}</p>}<details><summary>Риски варианта ({s.risks.length})</summary><ul>{s.risks.map(r => <li key={r.id}>{r.message}</li>)}</ul></details><button className="filter-btn" disabled={!s.changed || !!busy} onClick={() => { change(s.simulation.decisions); setResult({ ...s.simulation, risks: s.risks }); }}>{s.changed ? 'Применить вариант' : 'Улучшение не найдено'}</button></article>)}</div></section>}
+      {!!strategies.length && <section className="panel below-panel"><p className="label">Три приоритета</p><h2>Сравнение стратегий</h2><p className="hint">Замена или перенос одного решения. Это локальный поиск, не доказанный глобальный оптимум; варианты могут совпадать.</p><div className="strategy-grid">{strategies.map(s => <article className="strategy-card" key={s.id}><h3>{s.title}</h3><div className="summary-row"><span>Score</span><strong>{number(s.simulation.score)}</strong></div><p>Остаток: {s.simulation.budget.remaining} ед. · прирост: {number(s.scoreGain)}</p>{s.replacement && s.changed && <p className="hint">{describe(s.replacement.from)} → {describe(s.replacement.to)}</p>}<details><summary>Риски варианта ({s.risks.length})</summary><ul>{s.risks.map(r => <li key={r.id}>{r.message}</li>)}</ul></details><button className="filter-btn" disabled={!s.changed || !!busy} onClick={() => { if (report?.conversation) { document.getElementById('ai-dialogue')?.scrollIntoView({ behavior: 'smooth' }); return; } change(s.simulation.decisions); setResult({ ...s.simulation, risks: s.risks }); }}>{s.changed ? (report?.conversation ? 'Применить в диалоге' : 'Применить вариант') : 'Улучшение не найдено'}</button></article>)}</div></section>}
       <footer className="hint">SteppeX · учебная модель, не прогноз реальной Астаны · {catalog.datasetVersion}</footer>
     </div>
   );
 }
-

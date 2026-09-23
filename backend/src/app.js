@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ScenarioError } from "./engine.js";
 import { AgentError } from "./agent.js";
 import { MlError } from "./ml-engine.js";
+import { createConversations, ConversationError } from "./conversations.js";
 
 const decision = z
   .object({
@@ -110,52 +111,61 @@ export function createApp({
       ),
     });
   });
+  const conversations = createConversations({ engine });
+  const turnRequest = z.object({
+    message: z.string().trim().min(1).max(1500),
+    priority: z.enum(['quality', 'equity', 'reserve']).optional(),
+    revision: z.number().int().nonnegative(),
+    requestId: z.string().uuid(),
+  }).strict();
+  const applyRequest = z.object({
+    strategyId: z.enum(['quality', 'equity', 'reserve']),
+    revision: z.number().int().nonnegative(),
+    requestId: z.string().uuid(),
+  }).strict();
   const buckets = new Map();
   let activeAnalyses = 0;
-  app.post("/api/analyze", async (req, res, next) => {
+  async function paid(req, res, run) {
+    const now = Date.now();
+    for (const [key, value] of buckets) if (value.expires <= now) buckets.delete(key);
+    const key = req.ip;
+    const bucket = buckets.get(key) ?? { count: 0, expires: now + 60000 };
+    if (bucket.count >= aiRequestsPerMinute || activeAnalyses >= 2) {
+      res.setHeader('Retry-After', '60');
+      throw new ConversationError('AI_RATE_LIMIT', 'Слишком много запросов анализа. Повторите через минуту.', 429);
+    }
+    bucket.count++;
+    buckets.set(key, bucket);
+    activeAnalyses++;
+    try { return await run(); }
+    finally { activeAnalyses--; }
+  }
+  app.post('/api/analyze', async (req, res, next) => {
     try {
       const body = analysisRequest.parse(req.body);
       const simulation = engine.evaluate(body.decisions);
-      if (!agent)
-        return res
-          .status(503)
-          .json({
-            error: {
-              code: "AI_NOT_CONFIGURED",
-              message:
-                "Укажите OPENAI_API_KEY на сервере. Числовая симуляция доступна без ключа.",
-            },
-            simulation,
-            analysis: { status: "unavailable" },
-          });
-      const now = Date.now();
-      for (const [key, value] of buckets)
-        if (value.expires <= now) buckets.delete(key);
-      const key = req.ip;
-      const bucket = buckets.get(key) ?? { count: 0, expires: now + 60000 };
-      if (bucket.count >= aiRequestsPerMinute || activeAnalyses >= 2) {
-        res.setHeader("Retry-After", "60");
-        return res
-          .status(429)
-          .json({
-            error: {
-              code: "AI_RATE_LIMIT",
-              message:
-                "Слишком много запросов анализа. Повторите через минуту.",
-            },
-          });
-      }
-      bucket.count++;
-      buckets.set(key, bucket);
-      activeAnalyses++;
-      try {
-        res.json(await agent.analyze(body));
-      } finally {
-        activeAnalyses--;
-      }
-    } catch (error) {
-      next(error);
-    }
+      if (!agent) return res.status(503).json({
+        error: { code: 'AI_NOT_CONFIGURED', message: 'Укажите OPENAI_API_KEY на сервере. Числовая симуляция доступна без ключа.' },
+        simulation, analysis: { status: 'unavailable' },
+      });
+      const report = await paid(req, res, () => agent.analyze(body));
+      res.json({ ...report, conversation: conversations.create(report, body.question) });
+    } catch (error) { next(error); }
+  });
+  app.post('/api/conversations/:id/messages', async (req, res, next) => {
+    try {
+      const id = z.string().uuid().parse(req.params.id);
+      const body = turnRequest.parse(req.body);
+      if (!agent) throw new ConversationError('AI_NOT_CONFIGURED', 'ИИ не настроен. Добавьте серверный ключ и начните новый анализ.', 503);
+      const result = await conversations.message(id, body, input => paid(req, res, () => agent.analyze(input)));
+      res.json(result);
+    } catch (error) { next(error); }
+  });
+  app.post('/api/conversations/:id/apply', (req, res, next) => {
+    try {
+      const id = z.string().uuid().parse(req.params.id);
+      res.json(conversations.apply(id, applyRequest.parse(req.body)));
+    } catch (error) { next(error); }
   });
   app.use((_req, res) =>
     res
@@ -163,6 +173,7 @@ export function createApp({
       .json({ error: { code: "NOT_FOUND", message: "Маршрут не найден." } }),
   );
   app.use((error, _req, res, _next) => {
+    if (error instanceof ConversationError) return res.status(error.status).json({ error: { code: error.code, message: error.message } });
     if (error instanceof MlError)
       return res.status(503).json({ error: { code: error.code, message: error.message } });
     if (error instanceof ScenarioError)
